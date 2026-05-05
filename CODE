@@ -1,0 +1,245 @@
+#MAIN FUNCTION
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        installSplashScreen()
+        setContent {
+            ElectricityBillTheme {
+                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    BillingAppUI(innerPadding)
+                }
+            }
+        }
+    }
+}
+#BILLINGAPPUI SCREEN(FUNCTION)
+@Composable
+fun BillingAppUI(innerPadding: PaddingValues) {
+    val scrollState = rememberScrollState()
+    var sanctionedLoad by remember { mutableStateOf(TextFieldValue("")) }
+    var entitlementUnits by remember { mutableStateOf(TextFieldValue("")) }
+    var consumedUnits by remember { mutableStateOf(TextFieldValue("")) }
+    var recordedLoad by remember { mutableStateOf(TextFieldValue("")) }
+
+    // Results
+    var totalAmount by remember { mutableStateOf("") }
+    var gruhajyothiTotal by remember { mutableStateOf("") }
+    var finalAmount by remember { mutableStateOf("") }
+    var resultDetails by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+
+    // UI Layout
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFEFEFEF)) // Light gray background
+            .padding(innerPadding)
+            .padding(16.dp)
+            .verticalScroll(scrollState),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            "Bill Calculator",
+            style = MaterialTheme.typography.headlineSmall.copy(fontSize = 24.sp),
+            color = Color(0xFF37474F),
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Input fields
+        InputCard(label = "Sanctioned Load",img = R.drawable.sanctioned_load ,  value = sanctionedLoad) { sanctionedLoad = it }
+        InputCard(label = "Entitlement Units",img = R.drawable.entilelment_units ,  value = entitlementUnits) { entitlementUnits = it }
+        InputCard(label = "Consumed Units",img = R.drawable.consumed_load  ,  value = consumedUnits) { consumedUnits = it }
+        InputCard(label = "Recorded Load", img = R.drawable.recorded_load  , value = recordedLoad) { recordedLoad = it }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Calculate button
+        Button(
+            onClick = {
+                val sl = sanctionedLoad.text.toDoubleOrNull() ?: 0.0
+                val eu = entitlementUnits.text.toDoubleOrNull() ?: 0.0
+                val cu = consumedUnits.text.toDoubleOrNull() ?: 0.0
+                val rl = recordedLoad.text.toDoubleOrNull() ?: 0.0
+
+                val results = calculateBill(sl, eu, cu, rl)
+                resultDetails = results
+                totalAmount = "Total: ${results["total"]}"
+                gruhajyothiTotal = "GRUHA JYOTHI SUBSIDY: ${results["gruhajyothi"]}"
+                finalAmount = "Final Amount to be Paid: ${results["finalAmount"]}"
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+        ) {
+            Text("Calculate", color = Color.White)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Results Section
+        if (resultDetails.isNotEmpty()) {
+            ResultCard(
+                title = "Calculation Result",
+                fixedCharge = resultDetails["fixedCharge"]!!,
+                energyCharges = resultDetails["energyCharges"]!!,
+                fppca = resultDetails["fppca"]!!,
+                tax = resultDetails["tax"]!!,
+                total = resultDetails["total"]!!,
+                gruhajyothi = resultDetails["gruhajyothi"]!!,
+                excessLoadCharge = resultDetails["excessLoad"]!!,
+                finalAmount = resultDetails["finalAmount"]!!
+            )
+        }
+    }
+}
+
+// Input Card with Label and Hint
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InputCard(
+    label: String,
+    value: TextFieldValue,
+    img : Int ,
+    onValueChange: (TextFieldValue) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelLarge.copy(color = Color.Gray),
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { isExpanded = !isExpanded }) {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand"
+                    )
+                }
+            }
+
+            if (isExpanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Image(
+                    painter = painterResource(img), // Replace with your image resource
+                    contentDescription = "Sample Image",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp)
+                        .wrapContentHeight(),
+                    contentScale = ContentScale.Fit // Use ContentScale.FillBounds if stretching is preferred
+                )
+
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            TextField(
+                value = value,
+                onValueChange = onValueChange,
+                placeholder = { Text("Enter $label", color = Color(0xFF37474F)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                colors = TextFieldDefaults.textFieldColors(
+                    containerColor = Color(0xFFF7F7F7),
+                    focusedIndicatorColor = Color(0xFF4CAF50),
+                    focusedTextColor = Color.Black,
+                    unfocusedTextColor = Color.Black,
+                    unfocusedIndicatorColor = Color.Gray
+                )
+            )
+        }
+    }
+}
+
+
+// Results Card with Detailed Breakdown
+@Composable
+fun ResultCard(
+    title: String,
+    fixedCharge: String,
+    energyCharges: String,
+    fppca: String,
+    tax: String,
+    total: String,
+    gruhajyothi: String,
+    excessLoadCharge: String,
+    finalAmount: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(4.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = Color(0xFF37474F))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text("Fixed Charge: ₹$fixedCharge", style = MaterialTheme.typography.bodyMedium, color = Color.Black)
+            Text("Energy Charges: ₹$energyCharges", style = MaterialTheme.typography.bodyMedium, color = Color.Black)
+            Text("FPPCA: ₹$fppca", style = MaterialTheme.typography.bodyMedium , color = Color.Black)
+            Text("Tax: ₹$tax", style = MaterialTheme.typography.bodyMedium , color = Color.Black)
+            Text("Total: ₹$total", style = MaterialTheme.typography.bodyMedium, color = Color.Black)
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("GRUHA JYOTHI SUBSIDY: ₹$gruhajyothi", style = MaterialTheme.typography.bodyMedium , color = Color.Black)
+            Text("Excess Load Charge: ₹$excessLoadCharge", style = MaterialTheme.typography.bodyMedium , color = Color.Black)
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Final Amount: ₹$finalAmount", style = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFF4CAF50)))
+        }
+    }
+}
+
+// Calculation Logic
+fun calculateBill(
+    sanctionedLoad: Double,
+    entitlementUnit: Double,
+    consumedUnit: Double,
+    recordedLoad: Double
+): Map<String, String> {
+    val fixedCharge = 120 * sanctionedLoad
+    val energyCharges = consumedUnit * 5.90
+    val fppca = consumedUnit * 0.3
+    val tax = (energyCharges / 100) * 9
+    val total = fixedCharge + energyCharges + fppca + tax
+
+    val gruhajyothiFixedCharge = if (entitlementUnit == 0.0) 0.0 else 120 * sanctionedLoad
+    val gruhajyothiEnergyCharges = entitlementUnit * 5.90
+    val gruhajyothiFppca = entitlementUnit * 0.3
+    val gruhajyothiTax = (gruhajyothiEnergyCharges / 100) * 9
+    val gruhajyothiTotal = gruhajyothiFixedCharge + gruhajyothiEnergyCharges + gruhajyothiFppca + gruhajyothiTax
+
+    val excessLoad = if (recordedLoad > sanctionedLoad) (recordedLoad - sanctionedLoad) * 186.0 else 0.0
+    val finalAmount = total - gruhajyothiTotal + excessLoad
+
+    return mapOf(
+        "fixedCharge" to String.format("%.2f", fixedCharge),
+        "energyCharges" to String.format("%.2f", energyCharges),
+        "fppca" to String.format("%.2f", fppca),
+        "tax" to String.format("%.2f", tax),
+        "total" to String.format("%.2f", total),
+        "gruhajyothi" to String.format("%.2f", gruhajyothiTotal),
+        "excessLoad" to String.format("%.2f", excessLoad),
+        "finalAmount" to String.format("%.2f", finalAmount)
+    )
+}
